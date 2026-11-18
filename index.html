@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMF2234 OS Lab Starter: Baseline FCFS CPU Scheduler</title>
+  <!-- Tailwind CSS CDN for modern responsive UI styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom sleek dark scrollbars */
+    ::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    /* Hazard amber diagonal stripe pattern representing 1.0 ms context switch overhead */
+    .cs-hazard {
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(245, 158, 11, 0.95),
+        rgba(245, 158, 11, 0.95) 6px,
+        rgba(180, 83, 9, 0.95) 6px,
+        rgba(180, 83, 9, 0.95) 12px
+      );
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Top Academic Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 lg:px-8 py-3.5 shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/20 font-black">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2"/>
+            <rect x="9" y="9" width="6" height="6" stroke-width="2"/>
+            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-white">Coursework Starter Kit: Baseline FCFS CPU Scheduler</h1>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">FCFS Baseline</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-semibold border border-sky-500/30 hidden sm:inline-block">TMF2234 OS Lab</span>
+          </div>
+          <p class="text-xs text-slate-400">High Context Switching Latency Model (1.0 ms overhead per task switch)</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btnOpenGuide" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          <span>Student Guide & Code Hints</span>
+        </button>
+        <button id="btnExportCSV" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition shadow">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span>Export Workload (CSV)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Student Task Notice Banner -->
+  <div class="bg-gradient-to-r from-amber-950/40 via-slate-900 to-indigo-950/40 border-b border-amber-900/30 px-4 lg:px-8 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between text-xs text-slate-300 gap-2">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+        <span><strong>Student Assignment (Group of 6):</strong> Modify the JavaScript engine in this file to implement <strong>Round Robin (RR)</strong> with time quantums (<code class="text-amber-300 font-mono">q1=3ms</code>, <code class="text-amber-300 font-mono">q2=10ms</code>, <code class="text-amber-300 font-mono">q3=25ms</code>) while strictly accounting for the <strong>1.0 ms context switch penalty</strong>.</span>
+      </div>
+      <button id="btnToggleInstructions" class="text-amber-400 hover:text-amber-300 underline font-medium text-xs">Assignment Specifications &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Collapsible Assignment Specs Drawer -->
+  <div id="instructionsDrawer" class="hidden bg-slate-900 border-b border-slate-800 px-4 lg:px-8 py-4 transition-all duration-200">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-300">
+      <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
+        <h4 class="font-bold text-white text-sm">1. Task Architecture</h4>
+        <p>In a team of 5, replace the non-preemptive FCFS queue with a preemptive Round Robin (RR) queue with quantum time-slicing.</p>
+        <p>Charge the fixed <strong class="text-amber-300">1.0 ms context switch overhead</strong> on each quantum expiration preemption AND on each process burst completion.</p>
+      </div>
+      <div class="space-y-1.5 border-l-2 border-sky-500 pl-3">
+        <h4 class="font-bold text-white text-sm">2. Workload & Experiments</h4>
+        <p>Maintain the 100 synthetic processes (Arrivals $0 - 100\text{ ms}$, Bursts $5 - 50\text{ ms}$). Set your assigned Group Number as the RNG Seed.</p>
+        <p>Run three distinct trials testing: <strong class="text-slate-100">$q_1=3\text{ms}$</strong>, <strong class="text-slate-100">$q_2=10\text{ms}$</strong>, and <strong class="text-slate-100">$q_3=25\text{ms}$</strong>.</p>
+      </div>
+      <div class="space-y-1.5 border-l-2 border-indigo-500 pl-3">
+        <h4 class="font-bold text-white text-sm">3. Deliverables (20% Weight)</h4>
+        <p>Submit revised code, exported CSV logs, an analytical report comparing FCFS vs. the three RR quantums, and a 10-minute presentation video link.</p>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1 space-y-6">
+
+    <!-- Section 1: Simulation Configuration Controls -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200">Simulation Variables & Hardware Constraints</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnRandomSeed" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition">
+            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Randomize Seed</span>
+          </button>
+          <button id="btnRunSim" class="px-4 py-1.5 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Run FCFS Simulation</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 text-xs">
+        <!-- 1. Process Count (N) -->
+        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+          <label class="block text-slate-400 font-medium mb-1 flex items-center justify-between">
+            <span>Process Count (N)</span>
+            <span class="text-[10px] text-slate-500 font-mono">[5 - 200]</span>
+          </label>
+          <input type="number" id="inputN" value="100" min="5" max="200" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono text-xs focus:ring-1 focus:ring-sky-500 outline-none">
+        </div>
+
+        <!-- 2. RNG Seed (Group No.) -->
+        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+          <label class="block text-slate-400 font-medium mb-1 flex items-center justify-between">
+            <span>RNG Seed (Group No.)</span>
+            <span class="text-[10px] text-amber-400 font-mono">Deterministic LCG</span>
+          </label>
+          <input type="number" id="inputSeed" value="42" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-amber-300 font-mono text-xs focus:ring-1 focus:ring-sky-500 outline-none">
+        </div>
+
+        <!-- 3. Context Switch Overhead (ms) -->
+        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+          <label class="block text-slate-400 font-medium mb-1 flex items-center justify-between">
+            <span>Context Switch (CS)</span>
+            <span class="text-[10px] text-amber-400 font-mono">Fixed: 1.0 ms</span>
+          </label>
+          <div class="flex items-center gap-1.5">
+            <input type="number" id="inputCS" value="1.0" min="0" max="10" step="0.1" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-amber-400 font-mono text-xs focus:ring-1 focus:ring-sky-500 outline-none">
+            <span class="text-slate-400 font-mono">ms</span>
+          </div>
+        </div>
+
+        <!-- 4. Time Quantum (q) [Active in RR] -->
+        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+          <label class="block text-slate-400 font-medium mb-1 flex items-center justify-between">
+            <span>Time Quantum (q)</span>
+            <span class="text-[10px] text-slate-500 font-mono">[Target in RR]</span>
+          </label>
+          <select id="selectQuantum" disabled class="w-full bg-slate-900/60 border border-slate-800 rounded px-2.5 py-1.5 text-slate-400 font-mono text-xs cursor-not-allowed">
+            <option value="none">N/A (FCFS Mode)</option>
+            <option value="3">q1 = 3 ms (Small)</option>
+            <option value="10">q2 = 10 ms (Medium)</option>
+            <option value="25">q3 = 25 ms (Large)</option>
+          </select>
+        </div>
+
+        <!-- 5. Algorithm Selector -->
+        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+          <label class="block text-slate-400 font-medium mb-1">Algorithm Mode</label>
+          <select id="selectAlgo" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-semibold text-xs focus:ring-1 focus:ring-sky-500 outline-none">
+            <option value="FCFS" selected>First-Come, First-Served (FCFS)</option>
+            <option value="RR_PREVIEW" disabled>Round Robin (RR) [Student Target]</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+        <div class="flex items-center gap-3">
+          <span>Arrival Times: <strong class="text-slate-300 font-mono">Uniform [0.0, 100.0] ms</strong></span>
+          <span>&bull;</span>
+          <span>Burst Times: <strong class="text-slate-300 font-mono">Uniform [5.0, 50.0] ms</strong></span>
+        </div>
+        <div id="statusSummary" class="font-mono text-slate-500">Seed: 42 &bull; 100 Synthetic Processes Ready</div>
+      </div>
+    </section>
+
+    <!-- Section 2: Real-Time Performance KPI Dashboard -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total Makespan</span>
+        <div id="kpiMakespan" class="text-base font-bold text-white font-mono mt-1">0.00 ms</div>
+        <span class="text-[10px] text-slate-500">Total schedule time</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Context Switches</span>
+        <div id="kpiCSCount" class="text-base font-bold text-amber-400 font-mono mt-1">0</div>
+        <span class="text-[10px] text-slate-500">Total switches (N_cs)</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Lost CS Overhead</span>
+        <div id="kpiCSTime" class="text-base font-bold text-amber-300 font-mono mt-1">0.00 ms</div>
+        <span class="text-[10px] text-slate-500">Wasted CPU cycles</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">CPU Utilization</span>
+        <div id="kpiUtil" class="text-base font-bold text-emerald-400 font-mono mt-1">0.0 %</div>
+        <span class="text-[10px] text-slate-500">&Sigma;BT / Makespan</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Avg Turnaround</span>
+        <div id="kpiAvgTAT" class="text-base font-bold text-sky-400 font-mono mt-1">0.00 ms</div>
+        <span class="text-[10px] text-slate-500">Finish - Arrival</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Avg Waiting</span>
+        <div id="kpiAvgWT" class="text-base font-bold text-indigo-400 font-mono mt-1">0.00 ms</div>
+        <span class="text-[10px] text-slate-500">TAT - Burst</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Avg Response</span>
+        <div id="kpiAvgRT" class="text-base font-bold text-purple-400 font-mono mt-1">0.00 ms</div>
+        <span class="text-[10px] text-slate-500">First Start - Arrival</span>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-md">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Throughput</span>
+        <div id="kpiThroughput" class="text-base font-bold text-teal-400 font-mono mt-1">0.000</div>
+        <span class="text-[10px] text-slate-500">Procs / 1000 ms</span>
+      </div>
+    </section>
+
+    <!-- Section 3: Interactive Visual Gantt Timeline -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>Execution Gantt Timeline</span>
+          </h2>
+          <span id="ganttCountBadge" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">0 events</span>
+        </div>
+
+        <!-- Timeline Legend & Zoom Controls -->
+        <div class="flex flex-wrap items-center gap-3 text-xs">
+          <div class="flex items-center gap-3 bg-slate-950/80 px-3 py-1 rounded-lg border border-slate-800">
+            <div class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded bg-blue-600 inline-block"></span>
+              <span class="text-slate-300">Process Burst</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded cs-hazard inline-block border border-amber-600"></span>
+              <span class="text-amber-300 font-medium">CS Overhead (<span id="legendCS">1.0</span>ms)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded bg-slate-700 inline-block"></span>
+              <span class="text-slate-400">CPU Idle</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+            <span class="text-slate-400 text-[11px] mr-1">Zoom:</span>
+            <button id="btnZoomOut" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 font-mono font-bold">-</button>
+            <span id="labelZoom" class="text-slate-300 font-mono px-1.5">100%</span>
+            <button id="btnZoomIn" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 font-mono font-bold">+</button>
+            <button id="btnZoomReset" class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gantt Canvas Container -->
+      <div id="ganttScrollWrapper" class="w-full overflow-x-auto bg-slate-950 p-4 rounded-xl border border-slate-800 min-h-[140px] relative select-none">
+        <div id="ganttTrack" class="flex items-center min-w-max h-14 relative">
+          <!-- Dynamically injected timeline blocks -->
+        </div>
+        <!-- Time Milestone Markers -->
+        <div id="ganttTimeTicks" class="min-w-max flex text-[10px] text-slate-500 font-mono border-t border-slate-800 pt-1.5 mt-1 relative h-6"></div>
+      </div>
+
+      <div id="ganttTooltipBar" class="text-xs text-slate-400 font-mono min-h-[22px] text-center bg-slate-950/60 py-1 px-2 rounded border border-slate-800/80">
+        Hover over blocks in the Gantt chart to inspect precise time intervals and context switch transitions.
+      </div>
+    </section>
+
+    <!-- Section 4: Process Metrics Data Table with Pagination & Search -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200">Process Workload & Performance Metrics Table</h2>
+          <span id="badgeTableCount" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">100 processes</span>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5 text-xs text-slate-400">
+            <span>Show:</span>
+            <select id="selectPageSize" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500">
+              <option value="15" selected>15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="relative">
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="inputTableFilter" placeholder="Filter PID..." class="bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 w-36">
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable Data Table -->
+      <div class="overflow-x-auto border border-slate-800 rounded-lg">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-950/90 text-[11px] uppercase tracking-wider text-slate-400 font-semibold border-b border-slate-800">
+            <tr>
+              <th class="px-3.5 py-2.5">PID</th>
+              <th class="px-3.5 py-2.5">Arrival (AT)</th>
+              <th class="px-3.5 py-2.5">Burst (BT)</th>
+              <th class="px-3.5 py-2.5">Start Time</th>
+              <th class="px-3.5 py-2.5">Finish Time (FT)</th>
+              <th class="px-3.5 py-2.5 text-sky-400">Turnaround (TAT)</th>
+              <th class="px-3.5 py-2.5 text-indigo-400">Waiting (WT)</th>
+              <th class="px-3.5 py-2.5 text-purple-400">Response (RT)</th>
+            </tr>
+          </thead>
+          <tbody id="tableBodyProcesses" class="divide-y divide-slate-800/60 font-mono text-[11px]">
+            <!-- Injected by JavaScript -->
+          </tbody>
+          <tfoot id="tableSummaryFoot" class="bg-slate-950 font-mono text-[11px] font-bold text-slate-300 border-t-2 border-slate-700">
+            <!-- Summary averages row injected by JavaScript -->
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+        <div id="labelPaginationText">Showing 1 to 15 of 100</div>
+        <div class="flex items-center gap-1">
+          <button id="btnPagePrev" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:pointer-events-none">&larr; Prev</button>
+          <span id="labelCurrentPage" class="px-2 font-mono text-slate-300">Page 1 of 7</span>
+          <button id="btnPageNext" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:pointer-events-none">Next &rarr;</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Section 5: Student Implementation Guide & Code Preview Modal -->
+  <div id="modalGuide" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          <h3 class="text-sm font-bold text-white">Student Assignment Scaffold: Modifying FCFS to Round Robin (RR)</h3>
+        </div>
+        <button id="btnCloseGuideX" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="bg-indigo-950/40 border border-indigo-800/40 p-3 rounded-lg text-slate-300 space-y-1.5">
+          <p class="font-bold text-indigo-300 text-sm">Where do students write code?</p>
+          <p>The scheduler logic is located in the JavaScript function <code class="text-amber-300 font-mono">executeScheduler(initialProcs, csOverhead)</code> inside this single HTML file. In the baseline, it iterates non-preemptively. To implement Round Robin, students must add time quantum slicing and a dynamic FIFO ready queue.</p>
+        </div>
+
+        <div class="relative bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto space-y-1">
+          <div class="text-slate-500">// =========================================================================</div>
+          <div class="text-slate-500">// STUDENT ASSIGNMENT: ROUND ROBIN (RR) CONVERSION BLUEPRINT</div>
+          <div class="text-slate-500">// =========================================================================</div>
+          <br>
+          <div class="text-purple-400">function <span class="text-blue-400">executeRoundRobin</span>(initialProcs, quantum = 10.0, csOverhead = 1.0) {</div>
+          <div class="pl-4 text-slate-400">// 1. Initialize FIFO readyQueue and tracking variables</div>
+          <div class="pl-4 text-slate-300">let currentTime = 0.0;</div>
+          <div class="pl-4 text-slate-300">const readyQueue = [];</div>
+          <div class="pl-4 text-slate-300">const completed = [];</div>
+          <div class="pl-4 text-slate-300">let procIdx = 0;</div>
+          <br>
+          <div class="pl-4 text-slate-400">// 2. Enqueue arrived processes helper</div>
+          <div class="pl-4 text-slate-300">const enqueueArrived = (timeLimit) =&gt; {</div>
+          <div class="pl-8 text-slate-300">while (procIdx &lt; procs.length &amp;&amp; procs[procIdx].arrival_time &lt;= timeLimit) {</div>
+          <div class="pl-12 text-slate-300">readyQueue.push(procs[procIdx]);</div>
+          <div class="pl-12 text-slate-300">procIdx++;</div>
+          <div class="pl-8 text-slate-300">}</div>
+          <div class="pl-4 text-slate-300">};</div>
+          <br>
+          <div class="pl-4 text-slate-400">// 3. Main Round Robin execution loop</div>
+          <div class="pl-4 text-amber-300">while (completed.length &lt; procs.length) {</div>
+          <div class="pl-8 text-slate-400">// If ready queue is empty, advance clock across idle gap</div>
+          <div class="pl-8 text-slate-300">if (readyQueue.length === 0 &amp;&amp; procIdx &lt; procs.length) {</div>
+          <div class="pl-12 text-slate-300">currentTime = procs[procIdx].arrival_time;</div>
+          <div class="pl-12 text-slate-300">enqueueArrived(currentTime);</div>
+          <div class="pl-8 text-slate-300">}</div>
+          <br>
+          <div class="pl-8 text-slate-400">// Pop front process from ready queue:</div>
+          <div class="pl-8 text-slate-300">const curr = readyQueue.shift();</div>
+          <div class="pl-8 text-slate-300">if (curr.start_time === null) curr.start_time = currentTime; <span class="text-slate-500">// Lock RT</span></div>
+          <br>
+          <div class="pl-8 text-slate-400">// Compute slice duration: min(remaining_time, quantum)</div>
+          <div class="pl-8 text-emerald-400">const slice = Math.min(curr.remaining_time, quantum);</div>
+          <div class="pl-8 text-slate-300">currentTime += slice;</div>
+          <div class="pl-8 text-slate-300">curr.remaining_time -= slice;</div>
+          <br>
+          <div class="pl-8 text-slate-400">// CRITICAL: Enqueue arrivals that occurred DURING the active burst slice</div>
+          <div class="pl-8 text-slate-300">enqueueArrived(currentTime);</div>
+          <br>
+          <div class="pl-8 text-slate-400">// Incur 1.0 ms context switch overhead:</div>
+          <div class="pl-8 text-slate-300">if (curr.remaining_time &lt;= 0) {</div>
+          <div class="pl-12 text-slate-400">// Process finished</div>
+          <div class="pl-12 text-slate-300">curr.finish_time = currentTime;</div>
+          <div class="pl-12 text-slate-300">completed.push(curr);</div>
+          <div class="pl-12 text-amber-400">currentTime += csOverhead; // 1.0 ms transition overhead</div>
+          <div class="pl-12 text-slate-300">enqueueArrived(currentTime);</div>
+          <div class="pl-8 text-slate-300">} else {</div>
+          <div class="pl-12 text-slate-400">// Quantum expired (Preemption)</div>
+          <div class="pl-12 text-amber-400">currentTime += csOverhead; // 1.0 ms preemption overhead</div>
+          <div class="pl-12 text-slate-300">enqueueArrived(currentTime);</div>
+          <div class="pl-12 text-slate-300">readyQueue.push(curr); // Re-queue at the tail</div>
+          <div class="pl-8 text-slate-300">}</div>
+          <div class="pl-4 text-amber-300">}</div>
+          <div class="pl-4 text-purple-400">return { completed, makespan: currentTime };</div>
+          <div class="text-purple-400">}</div>
+        </div>
+
+        <div class="p-3 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 space-y-1">
+          <span class="text-slate-200 font-semibold">Testing Requirements for Groups:</span>
+          <ul class="list-disc pl-5 space-y-0.5">
+            <li>Test Small Quantum: <code class="text-amber-300 font-mono">q1 = 3 ms</code> (Evaluates high context-switch loss)</li>
+            <li>Test Medium Quantum: <code class="text-amber-300 font-mono">q2 = 10 ms</code> (Balanced interactive operating point)</li>
+            <li>Test Large Quantum: <code class="text-amber-300 font-mono">q3 = 25 ms</code> (Approaches FCFS behavior)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="px-5 py-3 border-t border-slate-800 bg-slate-950 flex justify-end">
+        <button id="btnCloseGuideBottom" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs">
+          Close Guide
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Simulation Logic -->
+  <script>
+    /**
+     * =========================================================================
+     * SECTION 1: DETERMINISTIC PSEUDO-RANDOM NUMBER GENERATOR (LCG)
+     * =========================================================================
+     * Ensures all student groups can test identical, reproducible workloads
+     * by simply entering their assigned Group ID as the seed.
+     */
+    class LCG {
+      constructor(seed = 42) {
+        this.m = 0x80000000; // 2^31
+        this.a = 1103515245;
+        this.c = 12345;
+        this.state = seed ? Math.abs(Math.floor(seed)) : 42;
+        if (this.state === 0) this.state = 1;
+      }
+      nextFloat() {
+        this.state = (this.a * this.state + this.c) % this.m;
+        return this.state / (this.m - 1);
+      }
+      uniform(min, max, decimals = 2) {
+        const val = min + (max - min) * this.nextFloat();
+        return parseFloat(val.toFixed(decimals));
+      }
+    }
+
+    /**
+     * =========================================================================
+     * SECTION 2: SYNTHETIC WORKLOAD GENERATOR
+     * =========================================================================
+     * Constraints: N processes, Arrival Time in [0, 100] ms, Burst in [5, 50] ms.
+     */
+    function generateSyntheticProcesses(count = 100, seed = 42) {
+      const rng = new LCG(seed);
+      const procs = [];
+      for (let i = 1; i <= count; i++) {
+        const at = rng.uniform(0.0, 100.0, 2);
+        const bt = rng.uniform(5.0, 50.0, 2);
+        procs.push({
+          pid: i,
+          arrival_time: at,
+          burst_time: bt,
+          remaining_time: bt,
+          start_time: null,
+          finish_time: 0,
+          response_time: 0,
+          waiting_time: 0,
+          turnaround_time: 0
+        });
+      }
+      // Sort strictly by arrival time; tie-break deterministically by PID
+      return procs.sort((a, b) => a.arrival_time - b.arrival_time || a.pid - b.pid);
+    }
+
+    /**
+     * =========================================================================
+     * SECTION 3: BASELINE FCFS SCHEDULER ENGINE WITH CONTEXT SWITCH OVERHEAD
+     * =========================================================================
+     * 
+     * STUDENT TASK:
+     * This is the function students will modify into Round Robin (RR).
+     */
+    function executeScheduler(initialProcs, csOverhead = 1.0) {
+      // Deep clone input to avoid side effects
+      const procs = initialProcs.map(p => ({
+        ...p,
+        remaining_time: p.burst_time,
+        start_time: null,
+        finish_time: 0,
+        response_time: 0,
+        waiting_time: 0,
+        turnaround_time: 0
+      }));
+
+      const completed = [];
+      const ganttEvents = []; // Stores { type: 'burst'|'cs'|'idle', label, duration, start, end }
+
+      let currentTime = 0.0;
+      let totalContextSwitches = 0;
+      let totalCSOverhead = 0.0;
+      let lastPid = null;
+
+      for (let i = 0; i < procs.length; i++) {
+        const p = procs[i];
+
+        // 1. Advance clock if CPU is idle (No CS charged during pure idle transition)
+        if (currentTime < p.arrival_time) {
+          const idleSpan = parseFloat((p.arrival_time - currentTime).toFixed(4));
+          ganttEvents.push({
+            type: 'idle',
+            label: 'IDLE',
+            duration: idleSpan,
+            start: currentTime,
+            end: p.arrival_time
+          });
+          currentTime = p.arrival_time;
+        }
+
+        // 2. Incur Context Switch overhead (1.0 ms) when switching from another process
+        if (lastPid !== null && lastPid !== p.pid && csOverhead > 0) {
+          const csStart = currentTime;
+          currentTime = parseFloat((currentTime + csOverhead).toFixed(4));
+          totalContextSwitches++;
+          totalCSOverhead += csOverhead;
+          ganttEvents.push({
+            type: 'cs',
+            label: 'CS',
+            duration: csOverhead,
+            start: csStart,
+            end: currentTime
+          });
+        }
+
+        // 3. Process executes to full completion (Non-preemptive FCFS)
+        p.start_time = currentTime;
+        p.response_time = parseFloat((p.start_time - p.arrival_time).toFixed(2));
+
+        const burstDuration = p.burst_time;
+        ganttEvents.push({
+          type: 'burst',
+          label: `P${p.pid}`,
+          duration: burstDuration,
+          start: currentTime,
+          end: parseFloat((currentTime + burstDuration).toFixed(4))
+        });
+        currentTime = parseFloat((currentTime + burstDuration).toFixed(4));
+
+        // 4. Record process completion metrics
+        p.finish_time = currentTime;
+        p.turnaround_time = parseFloat((p.finish_time - p.arrival_time).toFixed(2));
+        p.waiting_time = parseFloat((p.turnaround_time - p.burst_time).toFixed(2));
+
+        lastPid = p.pid;
+        completed.push(p);
+      }
+
+      // Compute System-Wide Aggregate KPIs
+      const n = completed.length;
+      const totalBurst = completed.reduce((sum, p) => sum + p.burst_time, 0);
+      const totalTAT = completed.reduce((sum, p) => sum + p.turnaround_time, 0);
+      const totalWT = completed.reduce((sum, p) => sum + p.waiting_time, 0);
+      const totalRT = completed.reduce((sum, p) => sum + p.response_time, 0);
+      const cpuUtilization = (totalBurst / currentTime) * 100.0;
+      const throughput = (n / currentTime) * 1000.0; // Processes completed per 1,000 ms
+
+      return {
+        completed,
+        ganttEvents,
+        metrics: {
+          makespan: parseFloat(currentTime.toFixed(2)),
+          contextSwitches: totalContextSwitches,
+          totalCSTime: parseFloat(totalCSOverhead.toFixed(2)),
+          cpuUtilization: parseFloat(cpuUtilization.toFixed(2)),
+          avgTAT: parseFloat((totalTAT / n).toFixed(2)),
+          avgWT: parseFloat((totalWT / n).toFixed(2)),
+          avgRT: parseFloat((totalRT / n).toFixed(2)),
+          throughput: parseFloat(throughput.toFixed(4)),
+          totalBurst: parseFloat(totalBurst.toFixed(2))
+        }
+      };
+    }
+
+    /**
+     * =========================================================================
+     * SECTION 4: APPLICATION STATE & UI RENDERING
+     * =========================================================================
+     */
+    let currentDataset = [];
+    let activeSimulationResult = null;
+    let currentPage = 1;
+    let pageSize = 15;
+    let ganttZoom = 1.0;
+
+    // Deterministic color generator for Gantt burst slices
+    const processColors = [
+      'bg-blue-600', 'bg-indigo-600', 'bg-sky-600', 'bg-teal-600',
+      'bg-cyan-600', 'bg-emerald-600', 'bg-violet-600', 'bg-purple-600'
+    ];
+
+    function runSimulation() {
+      const n = parseInt(document.getElementById('inputN').value, 10) || 100;
+      const seed = parseInt(document.getElementById('inputSeed').value, 10) || 42;
+      const cs = parseFloat(document.getElementById('inputCS').value) || 1.0;
+
+      // Update legend label
+      document.getElementById('legendCS').textContent = cs.toFixed(1);
+      document.getElementById('statusSummary').innerHTML = `Seed: <span class="text-amber-300 font-bold">${seed}</span> &bull; <strong>${n}</strong> Processes Generated Deterministically`;
+
+      currentDataset = generateSyntheticProcesses(n, seed);
+      activeSimulationResult = executeScheduler(currentDataset, cs);
+
+      renderKPIs(activeSimulationResult.metrics);
+      renderGantt(activeSimulationResult.ganttEvents, activeSimulationResult.metrics.makespan);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function renderKPIs(m) {
+      document.getElementById('kpiMakespan').textContent = `${m.makespan.toLocaleString()} ms`;
+      document.getElementById('kpiCSCount').textContent = m.contextSwitches.toLocaleString();
+      document.getElementById('kpiCSTime').textContent = `${m.totalCSTime.toLocaleString()} ms`;
+      document.getElementById('kpiUtil').textContent = `${m.cpuUtilization}%`;
+      document.getElementById('kpiAvgTAT').textContent = `${m.avgTAT.toLocaleString()} ms`;
+      document.getElementById('kpiAvgWT').textContent = `${m.avgWT.toLocaleString()} ms`;
+      document.getElementById('kpiAvgRT').textContent = `${m.avgRT.toLocaleString()} ms`;
+      document.getElementById('kpiThroughput').textContent = m.throughput.toFixed(3);
+    }
+
+    function renderGantt(events, totalTime) {
+      const track = document.getElementById('ganttTrack');
+      const ticks = document.getElementById('ganttTimeTicks');
+      const badge = document.getElementById('ganttCountBadge');
+
+      track.innerHTML = '';
+      ticks.innerHTML = '';
+      badge.textContent = `${events.length} timeline slices`;
+
+      const pxPerMs = 1.8 * ganttZoom;
+
+      events.forEach(evt => {
+        const block = document.createElement('div');
+        const width = Math.max(14, evt.duration * pxPerMs);
+        block.style.width = `${width}px`;
+        block.className = `h-12 flex-shrink-0 flex flex-col items-center justify-center text-[10px] font-mono border-r border-slate-900 cursor-pointer transition hover:opacity-85 relative`;
+
+        if (evt.type === 'burst') {
+          const pid = parseInt(evt.label.replace('P', ''), 10) || 1;
+          const colorClass = processColors[pid % processColors.length];
+          block.classList.add(colorClass, 'text-white', 'font-bold');
+          block.innerHTML = `<span>${evt.label}</span><span class="text-[9px] opacity-75">${evt.duration.toFixed(1)}ms</span>`;
+          block.title = `${evt.label} | Start: ${evt.start.toFixed(2)} ms | End: ${evt.end.toFixed(2)} ms | Duration: ${evt.duration.toFixed(2)} ms`;
+          block.onmouseenter = () => updateTooltip(`${evt.label} Execution Burst (${evt.duration.toFixed(2)} ms) | Window: [${evt.start.toFixed(2)} ms &rarr; ${evt.end.toFixed(2)} ms]`);
+        } else if (evt.type === 'cs') {
+          block.classList.add('cs-hazard', 'text-amber-950', 'font-black');
+          block.innerHTML = `<span class="text-[9px] bg-amber-400/90 px-1 rounded shadow">CS</span>`;
+          block.title = `Context Switch Overhead | 1.0 ms penalty | Range: [${evt.start.toFixed(2)} - ${evt.end.toFixed(2)} ms]`;
+          block.onmouseenter = () => updateTooltip(`Context Switch Overhead: 1.0 ms State-Save Penalty | Window: [${evt.start.toFixed(2)} ms &rarr; ${evt.end.toFixed(2)} ms]`);
+        } else if (evt.type === 'idle') {
+          block.classList.add('bg-slate-800', 'text-slate-400');
+          block.innerHTML = `<span>IDLE</span><span class="text-[9px]">${evt.duration.toFixed(1)}ms</span>`;
+          block.title = `CPU Idle Gap | Duration: ${evt.duration.toFixed(2)} ms`;
+          block.onmouseenter = () => updateTooltip(`CPU Idle Gap (${evt.duration.toFixed(2)} ms) | Waiting for arrivals: [${evt.start.toFixed(2)} ms &rarr; ${evt.end.toFixed(2)} ms]`);
+        }
+
+        track.appendChild(block);
+      });
+
+      // Render milestone ticks every 200 ms
+      const interval = 200;
+      const tickCount = Math.floor(totalTime / interval);
+      for (let i = 0; i <= tickCount; i++) {
+        const t = i * interval;
+        const pos = t * pxPerMs;
+        const tickEl = document.createElement('div');
+        tickEl.className = 'absolute';
+        tickEl.style.left = `${pos + 16}px`;
+        tickEl.textContent = `${t}ms`;
+        ticks.appendChild(tickEl);
+      }
+    }
+
+    function updateTooltip(msg) {
+      document.getElementById('ganttTooltipBar').textContent = msg;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBodyProcesses');
+      const tfoot = document.getElementById('tableSummaryFoot');
+      const filter = document.getElementById('inputTableFilter').value.toLowerCase().trim();
+      const list = activeSimulationResult ? activeSimulationResult.completed : [];
+
+      const filtered = list.filter(p => {
+        if (!filter) return true;
+        return p.pid.toString().includes(filter) || `p${p.pid}`.toLowerCase().includes(filter);
+      });
+
+      document.getElementById('badgeTableCount').textContent = `${filtered.length} processes`;
+
+      let effectivePageSize = pageSize === 'all' ? filtered.length : parseInt(pageSize, 10);
+      const totalPages = Math.max(1, Math.ceil(filtered.length / effectivePageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIdx = (currentPage - 1) * effectivePageSize;
+      const endIdx = Math.min(startIdx + effectivePageSize, filtered.length);
+      const paged = filtered.slice(startIdx, endIdx);
+
+      tbody.innerHTML = '';
+      if (paged.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500 italic">No matching processes found.</td></tr>`;
+      } else {
+        paged.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-800/40 transition';
+          tr.innerHTML = `
+            <td class="px-3.5 py-2 font-bold text-slate-200">P${p.pid}</td>
+            <td class="px-3.5 py-2 text-slate-300">${p.arrival_time.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-slate-300 font-semibold">${p.burst_time.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-slate-400">${p.start_time !== null ? p.start_time.toFixed(2) + ' ms' : '--'}</td>
+            <td class="px-3.5 py-2 text-slate-300">${p.finish_time.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-sky-400 font-semibold">${p.turnaround_time.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-indigo-400 font-semibold">${p.waiting_time.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-purple-400 font-semibold">${p.response_time.toFixed(2)} ms</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Summary statistics footer
+      if (activeSimulationResult) {
+        const m = activeSimulationResult.metrics;
+        tfoot.innerHTML = `
+          <tr>
+            <td class="px-3.5 py-2 text-amber-400 uppercase">Average</td>
+            <td class="px-3.5 py-2 text-slate-400">--</td>
+            <td class="px-3.5 py-2 text-slate-200">${(m.totalBurst / activeSimulationResult.completed.length).toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-slate-400">--</td>
+            <td class="px-3.5 py-2 text-slate-200">${m.makespan.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-sky-400">${m.avgTAT.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-indigo-400">${m.avgWT.toFixed(2)} ms</td>
+            <td class="px-3.5 py-2 text-purple-400">${m.avgRT.toFixed(2)} ms</td>
+          </tr>
+        `;
+      }
+
+      document.getElementById('labelPaginationText').textContent = `Showing ${filtered.length > 0 ? startIdx + 1 : 0} to ${endIdx} of ${filtered.length}`;
+      document.getElementById('labelCurrentPage').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('btnPagePrev').disabled = (currentPage <= 1);
+      document.getElementById('btnPageNext').disabled = (currentPage >= totalPages);
+    }
+
+    function exportToCSV() {
+      if (!activeSimulationResult || !activeSimulationResult.completed.length) return;
+      const seed = document.getElementById('inputSeed').value;
+      let csv = "PID,Arrival_Time_ms,Burst_Time_ms,Start_Time_ms,Finish_Time_ms,Turnaround_Time_ms,Waiting_Time_ms,Response_Time_ms\n";
+      activeSimulationResult.completed.forEach(p => {
+        csv += `${p.pid},${p.arrival_time},${p.burst_time},${p.start_time},${p.finish_time},${p.turnaround_time},${p.waiting_time},${p.response_time}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workload_seed_${seed}_FCFS_baseline.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /**
+     * =========================================================================
+     * SECTION 5: EVENT HANDLERS & MODAL CONTROLS
+     * =========================================================================
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      runSimulation();
+
+      document.getElementById('btnRunSim').addEventListener('click', runSimulation);
+
+      // Randomize seed button
+      document.getElementById('btnRandomSeed').addEventListener('click', () => {
+        document.getElementById('inputSeed').value = Math.floor(Math.random() * 90000) + 1000;
+        runSimulation();
+      });
+
+      // Export CSV
+      document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+
+      // Zoom controls
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        if (ganttZoom < 3.0) {
+          ganttZoom = parseFloat((ganttZoom + 0.25).toFixed(2));
+          document.getElementById('labelZoom').textContent = `${Math.round(ganttZoom * 100)}%`;
+          renderGantt(activeSimulationResult.ganttEvents, activeSimulationResult.metrics.makespan);
+        }
+      });
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        if (ganttZoom > 0.3) {
+          ganttZoom = parseFloat((ganttZoom - 0.25).toFixed(2));
+          document.getElementById('labelZoom').textContent = `${Math.round(ganttZoom * 100)}%`;
+          renderGantt(activeSimulationResult.ganttEvents, activeSimulationResult.metrics.makespan);
+        }
+      });
+      document.getElementById('btnZoomReset').addEventListener('click', () => {
+        ganttZoom = 1.0;
+        document.getElementById('labelZoom').textContent = '100%';
+        renderGantt(activeSimulationResult.ganttEvents, activeSimulationResult.metrics.makespan);
+      });
+
+      // Table page size & search
+      document.getElementById('selectPageSize').addEventListener('change', (e) => {
+        pageSize = e.target.value;
+        currentPage = 1;
+        renderTable();
+      });
+      document.getElementById('inputTableFilter').addEventListener('input', () => {
+        currentPage = 1;
+        renderTable();
+      });
+      document.getElementById('btnPagePrev').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderTable();
+        }
+      });
+      document.getElementById('btnPageNext').addEventListener('click', () => {
+        currentPage++;
+        renderTable();
+      });
+
+      // Collapsible instructions banner
+      const drawer = document.getElementById('instructionsDrawer');
+      document.getElementById('btnToggleInstructions').addEventListener('click', () => {
+        drawer.classList.toggle('hidden');
+      });
+
+      // Student guide modal
+      const modal = document.getElementById('modalGuide');
+      document.getElementById('btnOpenGuide').addEventListener('click', () => modal.classList.remove('hidden'));
+      document.getElementById('btnCloseGuideX').addEventListener('click', () => modal.classList.add('hidden'));
+      document.getElementById('btnCloseGuideBottom').addEventListener('click', () => modal.classList.add('hidden'));
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    });
+  </script>
+</body>
+</html>
